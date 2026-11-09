@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>셋이면 합체</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#e7efe9; --ink:#1d3330; --muted:#5f7470;
+  --felt:#1f5049; --felt-edge:#163b36; --hole:#2a625a;
+  --tile:#fbf6ea; --tile-edge:#d9cfb8; --panel:#f7faf8;
+  --ok:rgba(255,255,255,.35); --bad:rgba(230,80,70,.45);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10201e; --ink:#e7efe9; --muted:#93a8a3;
+    --felt:#1a4640; --felt-edge:#0e2c28; --hole:#23574f;
+    --tile:#f3ecdb; --tile-edge:#bfb398; --panel:#172b28;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10201e; --ink:#e7efe9; --muted:#93a8a3;
+  --felt:#1a4640; --felt-edge:#0e2c28; --hole:#23574f;
+  --tile:#f3ecdb; --tile-edge:#bfb398; --panel:#172b28;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%}
+body{
+  margin:0; min-height:100%; background:var(--bg); color:var(--ink);
+  font-family:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  -webkit-user-select:none; user-select:none; overscroll-behavior:none;
+  touch-action:manipulation; overflow-x:hidden; -webkit-tap-highlight-color:transparent;
+}
+.wrap{max-width:460px; margin:0 auto; padding:16px 16px 28px;}
+header{display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:14px}
+h1{font-family:"Jua",sans-serif; font-weight:400; font-size:2.1rem; line-height:1; margin:0; letter-spacing:-.02em}
+h1 small{display:block; font-family:"Gowun Dodum",sans-serif; font-size:.82rem; color:var(--muted); margin-top:6px; letter-spacing:0}
+.scores{display:flex; gap:14px; text-align:right}
+.scores div{font-size:.78rem; color:var(--muted)}
+.scores b{display:block; font-family:"Jua",sans-serif; font-weight:400; font-size:1.55rem; color:var(--ink); line-height:1.1}
+
+:root{--cell:40px}
+.board{
+  position:relative; background:var(--felt); padding:12px; border-radius:18px;
+  box-shadow:inset 0 0 0 3px var(--felt-edge), 0 6px 0 var(--felt-edge);
+  display:grid; grid-template-columns:repeat(8,var(--cell)); gap:4px; justify-content:center;
+  touch-action:none;
+}
+.cell{width:var(--cell); height:var(--cell); border-radius:9px; background:var(--hole); position:relative}
+.cell.prev-ok{background:var(--ok)}
+.cell.prev-bad{background:var(--bad)}
+
+.tile{
+  position:absolute; inset:0; border-radius:9px; background:var(--tile);
+  box-shadow:0 4px 0 var(--edge, var(--tile-edge));
+  transform:translateY(-3px);
+  display:flex; align-items:center; justify-content:center;
+  font-family:"Jua",sans-serif; color:var(--c); font-size:calc(var(--cell)*.46); line-height:1;
+}
+.tile::after{content:""; position:absolute; left:14%; right:14%; bottom:12%; height:3px; border-radius:2px; background:var(--c); opacity:.8}
+.tile.big{font-size:calc(var(--cell)*.36)}
+.tile.pop{animation:pop .28s ease-out}
+.tile.drop{animation:drop .18s ease-out}
+@keyframes pop{0%{transform:translateY(-3px) scale(.4)}60%{transform:translateY(-3px) scale(1.18)}100%{transform:translateY(-3px) scale(1)}}
+@keyframes drop{0%{transform:translateY(-10px);opacity:.6}100%{transform:translateY(-3px);opacity:1}}
+.burst{position:absolute; inset:-2px; border-radius:10px; background:#fff; animation:burst .35s ease-out forwards; pointer-events:none}
+@keyframes burst{0%{opacity:.9;transform:scale(.6)}100%{opacity:0;transform:scale(1.3)}}
+
+.items{display:flex; gap:8px; margin-top:18px}
+.item{
+  flex:1; position:relative; background:var(--panel); border-radius:12px; padding:8px 4px 6px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center;
+  box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 12%, transparent); color:var(--ink);
+  font-family:"Gowun Dodum",sans-serif; font-size:.72rem; touch-action:manipulation; transition:transform .1s;
+}
+.item .ico{font-size:1.35rem; line-height:1.1}
+.item .n{
+  position:absolute; top:-6px; right:-4px; min-width:20px; height:20px; border-radius:10px; background:var(--felt);
+  color:#fff; font-family:"Jua",sans-serif; font-size:.8rem; display:flex; align-items:center; justify-content:center; padding:0 5px;
+}
+.item[disabled]{opacity:.38; cursor:default}
+.item[disabled] .n{background:color-mix(in srgb, var(--ink) 30%, transparent)}
+.item.on{box-shadow:0 0 0 3px var(--felt); transform:translateY(-2px)}
+.cell.target{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
+.arming .board{cursor:crosshair}
+.hint{margin-top:8px; font-size:.82rem; color:var(--muted); min-height:1.2em; text-align:center}
+.tray{display:grid;  grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px}
+.slot{
+  height:128px; background:var(--panel); border-radius:14px; display:flex; align-items:center; justify-content:center;
+  touch-action:none; cursor:grab; position:relative; outline:none;
+  box-shadow:0 0 0 1.5px color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.slot:focus-visible{box-shadow:0 0 0 3px var(--felt)}
+.slot.empty{cursor:default}
+.slot.dim .mini{opacity:.3}
+.mini{position:relative}
+.mini .tile{--cell:24px; border-radius:6px; font-size:12px; box-shadow:0 2px 0 var(--edge)}
+.mini .tile::after{display:none}
+.ghost{position:fixed; left:0; top:0; pointer-events:none; z-index:10; opacity:.92}
+.ghost .tile{border-radius:9px}
+.ghost.snapped{transition:transform .07s ease-out; opacity:1}
+.ghost.snapped .tile{box-shadow:0 5px 0 var(--edge), 0 0 0 2px rgba(255,255,255,.7)}
+
+.help{margin-top:18px; font-size:.9rem; line-height:1.65; color:var(--muted)}
+.help p{margin:0 0 6px}
+.ladder{display:flex; gap:5px; margin:10px 0 4px; flex-wrap:wrap}
+.ladder span{font-family:"Jua",sans-serif; font-size:.9rem; padding:3px 8px; border-radius:7px; background:var(--tile); color:var(--c); box-shadow:0 2px 0 var(--edge)}
+.combo{
+  position:absolute; left:50%; top:42%; transform:translate(-50%,-50%);
+  font-family:"Jua",sans-serif; font-size:2rem; color:#fff; pointer-events:none;
+  text-shadow:0 3px 0 var(--felt-edge); animation:float .8s ease-out forwards; white-space:nowrap
+}
+@keyframes float{0%{opacity:0;transform:translate(-50%,-30%)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-110%)}}
+.over{
+  position:absolute; inset:0; border-radius:18px; background:color-mix(in srgb, var(--felt-edge) 88%, transparent);
+  display:none; flex-direction:column; align-items:center; justify-content:center; color:#fff; text-align:center; gap:6px; z-index:5
+}
+.over.show{display:flex}
+.over h2{font-family:"Jua",sans-serif; font-weight:400; font-size:2rem; margin:0}
+.over p{margin:0 0 12px; opacity:.85}
+button{
+  font-family:"Jua",sans-serif; font-size:1.1rem; border:0; border-radius:12px; padding:10px 22px; cursor:pointer;
+  background:var(--tile); color:var(--felt-edge); box-shadow:0 4px 0 var(--tile-edge);
+}
+button:active{transform:translateY(3px); box-shadow:0 1px 0 var(--tile-edge)}
+button:focus-visible{outline:3px solid #fff; outline-offset:2px}
+.bar{display:flex; justify-content:flex-end; margin-top:14px}
+.bar button{font-size:.95rem; padding:7px 16px; background:var(--panel); color:var(--ink); box-shadow:0 3px 0 color-mix(in srgb, var(--ink) 18%, transparent)}
+@media (prefers-reduced-motion: reduce){ .tile.pop,.tile.drop,.burst,.combo{animation:none} .burst{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>셋이면 합체<small>같은 숫자 3개를 붙이면 두 배로</small></h1>
+    <div class="scores">
+      <div>점수<b id="score">0</b></div>
+      <div>최고<b id="best">0</b></div>
+    </div>
+  </header>
+
+  <div class="board" id="board">
+    <div class="over" id="over">
+      <h2>더 놓을 곳이 없어요</h2>
+      <p id="finalText"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <button id="resume" style="display:none">아이템 쓰기</button>
+        <button id="again">다시 하기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="items" id="items"></div>
+  <div class="hint" id="hint"></div>
+
+  <div class="tray" id="tray"></div>
+
+  <div class="bar"><button id="restart">새 게임</button></div>
+
+  <div class="help">
+    <p>아래 블록을 판으로 끌어다 놓으세요. 블록을 톡 누르면 회전해요.</p>
+    <p>같은 숫자가 3칸 이상 이어지면 마지막에 놓은 자리로 합쳐지며 두 배가 됩니다. 연쇄 합체는 점수가 더 커져요.</p>
+    <p>128이 만들어지면 터지면서 주변 3×3을 비워 줍니다.</p>
+    <p>3단 이상 연쇄를 만들거나 점수 구간(2,000점, 이후 3,500점마다)을 넘을 때 아이템을 하나 받아요. 종류별로 2개까지만 가질 수 있고, 가득 찼을 때는 점수로 대신 들어와요.</p>
+    <div class="ladder" id="ladder"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+const N = 8;
+const COLORS = {
+  2:['#c98a12','#e3b85a'], 4:['#d4632a','#eaa27a'], 8:['#c63a3a','#e58d8d'],
+  16:['#b2327a','#dc8ab8'], 32:['#6b44c2','#ab93e0'], 64:['#2c6cc4','#8fb3e6'], 128:['#138a6c','#7fcbb7']
+};
+const SHAPES = [
+  [[0,0]],
+  [[0,0],[0,1]],
+  [[0,0],[0,1],[0,2]],
+  [[0,0],[1,0],[1,1]],
+  [[0,0],[0,1],[0,2],[0,3]],
+  [[0,0],[0,1],[1,0],[1,1]],
+  [[0,0],[0,1],[0,2],[1,1]],
+  [[0,1],[0,2],[1,0],[1,1]],
+  [[0,0],[1,0],[2,0],[2,1]],
+  [[0,0],[0,1],[1,1]],
+];
+
+const boardEl = document.getElementById('board');
+const trayEl = document.getElementById('tray');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const overEl = document.getElementById('over');
+
+let board, tray, score, best = 0, maxMade, busy = false;
+const cells = [];
+
+try { best = parseInt(localStorage.getItem('merge-best') || '0', 10) || 0; } catch(e) {}
+bestEl.textContent = best;
+
+// ladder legend
+document.getElementById('ladder').innerHTML =
+  Object.keys(COLORS).map(v => `<span style="--c:${COLORS[v][0]};--edge:${COLORS[v][1]}">${v}</span>`).join('');
+
+for (let i = 0; i < N*N; i++) {
+  const d = document.createElement('div');
+  d.className = 'cell';
+  boardEl.appendChild(d);
+  cells.push(d);
+}
+
+const rnd = a => a[Math.floor(Math.random()*a.length)];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function valuePool(){
+  const p = [2,2,2,2,4,4,4,8];
+  if (maxMade >= 32) p.push(8,16);
+  if (maxMade >= 64) p.push(16);
+  return p;
+}
+function normalize(cs){
+  const mr = Math.min(...cs.map(c=>c[0])), mc = Math.min(...cs.map(c=>c[1]));
+  return cs.map(([r,c,v]) => [r-mr, c-mc, v]);
+}
+function rotate(cs){ return normalize(cs.map(([r,c,v]) => [c,-r,v])); }
+function makePiece(){
+  let cs = rnd(SHAPES).map(([r,c]) => [r,c,0]);
+  const turns = Math.floor(Math.random()*4);
+  for (let i=0;i<turns;i++) cs = rotate(cs);
+  const pool = valuePool();
+  // bias: pieces often share a value, which makes planning readable
+  const base = rnd(pool);
+  cs.forEach(c => c[2] = Math.random() < .55 ? base : rnd(pool));
+  return cs;
+}
+
+function tileHTML(v, extra=''){
+  const [c,e] = COLORS[v] || ['#333','#999'];
+  return `<div class="tile ${v>=100?'big':''} ${extra}" style="--c:${c};--edge:${e}">${v}</div>`;
+}
+
+function renderBoard(anim = {}){
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    const el = cells[r*N+c], v = board[r][c];
+    const key = r*N+c;
+    el.innerHTML = v ? tileHTML(v, anim[key]||'') : '';
+  }
+}
+
+function renderTray(){
+  trayEl.innerHTML = '';
+  tray.forEach((p, i) => {
+    const s = document.createElement('div');
+    s.className = 'slot' + (p ? '' : ' empty');
+    s.tabIndex = p ? 0 : -1;
+    s.setAttribute('aria-label', p ? `블록 ${i+1}, 누르면 회전` : '빈 칸');
+    if (p){
+      const size = 24, gap = 3;
+      const h = Math.max(...p.map(c=>c[0]))+1, w = Math.max(...p.map(c=>c[1]))+1;
+      const m = document.createElement('div');
+      m.className = 'mini';
+      m.style.width = (w*size+(w-1)*gap)+'px';
+      m.style.height = (h*size+(h-1)*gap)+'px';
+      m.innerHTML = p.map(([r,c,v]) =>
+        `<div style="position:absolute;left:${c*(size+gap)}px;top:${r*(size+gap)}px;width:${size}px;height:${size}px">${tileHTML(v)}</div>`).join('');
+      s.appendChild(m);
+      if (!fitsAnywhere(p, true)) s.classList.add('dim');
+      bindDrag(s, i);
+      s.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); rotateSlot(i);} });
+    }
+    trayEl.appendChild(s);
+  });
+}
+
+function canPlace(p, r0, c0){
+  return p.every(([r,c]) => {
+    const R=r0+r, C=c0+c;
+    return R>=0 && R<N && C>=0 && C<N && !board[R][C];
+  });
+}
+function fitsAnywhere(p, withRot){
+  let q = p;
+  for (let t=0; t<(withRot?4:1); t++){
+    for (let r=0;r<N;r++) for (let c=0;c<N;c++) if (canPlace(q,r,c)) return true;
+    q = rotate(q);
+  }
+  return false;
+}
+
+function rotateSlot(i){
+  if (busy || !tray[i]) return;
+  tray[i] = rotate(tray[i]);
+  renderTray();
+}
+
+// ---------- drag ----------
+let drag = null;
+function cancelDrag(){
+  document.querySelectorAll('.ghost').forEach(g => g.remove());
+  clearPreview();
+  if (drag){ drag = null; if (!busy) renderTray(); }
+}
+window.addEventListener('blur', cancelDrag);
+document.addEventListener('visibilitychange', () => { if (document.hidden) cancelDrag(); });
+function pitch(){
+  const a = cells[0].getBoundingClientRect(), b = cells[1].getBoundingClientRect();
+  return { x0:a.left, y0:a.top, size:a.width, step:b.left-a.left };
+}
+function clearPreview(){ cells.forEach(c => c.classList.remove('prev-ok','prev-bad')); }
+
+function bindDrag(slot, i){
+  slot.addEventListener('pointerdown', e => {
+    if (busy || !tray[i]) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (drag) cancelDrag();                         // 남은 드래그는 정리하고 이번 입력은 그대로 받음
+    try { slot.setPointerCapture(e.pointerId); } catch(_) {}
+    drag = { i, id:e.pointerId, sx:e.clientX, sy:e.clientY, t:performance.now(),
+             moving:false, ghost:null, pos:null, touch: e.pointerType !== 'mouse', lx:e.clientX, ly:e.clientY };
+  });
+  // 터치 기본 동작(스크롤·당겨서 새로고침)이 드래그를 끊지 않도록 막음
+  slot.addEventListener('touchstart', e => { if (tray[i] && !busy) e.preventDefault(); }, { passive:false });
+}
+
+// 이동/놓기는 창 전체에서 받는다 → 손가락이 슬롯 밖으로 나가도 끊기지 않음
+window.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  drag.lx = e.clientX; drag.ly = e.clientY;
+  if (!drag.moving && Math.hypot(e.clientX-drag.sx, e.clientY-drag.sy) > 8){
+    drag.moving = true;
+    startGhost();
+    const m = trayEl.children[drag.i].querySelector('.mini'); if (m) m.style.opacity = '.2';
+  }
+  if (drag.moving) moveGhost(e.clientX, e.clientY);
+});
+document.addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, { passive:false });
+
+function finish(e){
+  if (!drag || e.pointerId !== drag.id) return;
+  const d = drag; drag = null;
+  document.querySelectorAll('.ghost').forEach(g => g.remove());
+  clearPreview();
+  if (!d.moving){
+    if (e.type === 'pointerup' && performance.now() - d.t < 350) rotateSlot(d.i);
+    else renderTray();
+    return;
+  }
+  // 놓는 순간 손가락이 살짝 밀려도, 마지막에 붙어 있던 자리 또는 더 넓은 범위에서 다시 찾아 놓음
+  let pos = d.pos;
+  if (!pos || !canPlace(tray[d.i], pos[0], pos[1])) pos = findSnap(d.i, d.lx, d.ly, d.touch, 2.5);
+  if (pos) place(d.i, pos[0], pos[1]);
+  else renderTray();
+}
+window.addEventListener('pointerup', finish);
+window.addEventListener('pointercancel', e => {
+  // 브라우저가 제스처를 가로챈 경우에도 붙어 있던 자리가 있으면 그대로 놓음
+  if (drag && e.pointerId === drag.id && drag.pos) finish({ pointerId:e.pointerId, type:'pointerup' });
+  else if (drag && e.pointerId === drag.id) cancelDrag();
+});
+
+function startGhost(){
+  const p = tray[drag.i], P = pitch();
+  const g = document.createElement('div');
+  g.className = 'ghost';
+  const h = Math.max(...p.map(c=>c[0]))+1, w = Math.max(...p.map(c=>c[1]))+1;
+  g.style.width = (w*P.step - (P.step-P.size))+'px';
+  g.style.height = (h*P.step - (P.step-P.size))+'px';
+  g.innerHTML = p.map(([r,c,v]) =>
+    `<div style="position:absolute;left:${c*P.step}px;top:${r*P.step}px;width:${P.size}px;height:${P.size}px;--cell:${P.size}px">${tileHTML(v)}</div>`).join('');
+  document.body.appendChild(g);
+  drag.ghost = g; drag.w = parseFloat(g.style.width); drag.h = parseFloat(g.style.height);
+}
+
+// 손가락 위치 → 블록이 그려질 위치.
+// 터치: 블록 전체가 손가락 바로 위에 보이도록(손가락에 가려지지 않게) 띄움. 마우스: 커서 중앙.
+function ghostXY(x, y, touch, w, h){
+  if (!touch) return [x - w/2, y - h/2];
+  return [x - w/2, y - h - 28];
+}
+function blockSize(i){
+  const p = tray[i], P = pitch();
+  const h = Math.max(...p.map(c=>c[0]))+1, w = Math.max(...p.map(c=>c[1]))+1;
+  return [w*P.step-(P.step-P.size), h*P.step-(P.step-P.size)];
+}
+function findSnap(i, x, y, touch, radius){
+  const P = pitch(), p = tray[i], [w,h] = blockSize(i);
+  const [left, top] = ghostXY(x, y, touch, w, h);
+  const fc = (left - P.x0)/P.step, fr = (top - P.y0)/P.step;
+  let best = null, bd = Infinity;
+  const R = Math.ceil(radius);
+  for (let r = Math.floor(fr)-R; r <= Math.ceil(fr)+R; r++)
+    for (let c = Math.floor(fc)-R; c <= Math.ceil(fc)+R; c++){
+      if (!canPlace(p, r, c)) continue;
+      const d = Math.hypot(r-fr, c-fc);
+      if (d < bd){ bd = d; best = [r,c]; }
+    }
+  return best && bd <= radius ? best : null;
+}
+
+const SNAP = 1.6;   // 이 칸 수 이내면 가장 가까운 빈 자리로 끌어당김
+function moveGhost(x, y){
+  const P = pitch(), p = tray[drag.i];
+  clearPreview();
+  const pos = findSnap(drag.i, x, y, drag.touch, SNAP);
+  if (pos){
+    const [r0, c0] = pos;
+    drag.pos = pos;
+    drag.ghost.classList.add('snapped');
+    drag.ghost.style.transform = `translate(${P.x0 + c0*P.step}px,${P.y0 + r0*P.step}px)`;
+    p.forEach(([r,c]) => cells[(r0+r)*N + c0+c].classList.add('prev-ok'));
+    if (drag.lastSnap !== r0*N+c0 && navigator.vibrate) { try{ navigator.vibrate(8); }catch(_){} }
+    drag.lastSnap = r0*N+c0;
+    return;
+  }
+  drag.pos = null; drag.lastSnap = null;
+  drag.ghost.classList.remove('snapped');
+  const [left, top] = ghostXY(x, y, drag.touch, drag.w, drag.h);
+  drag.ghost.style.transform = `translate(${left}px,${top}px)`;
+}
+
+// ---------- game logic ----------
+function group(r, c){
+  const v = board[r][c], seen = new Set([r*N+c]), st = [[r,c]], out = [];
+  while (st.length){
+    const [a,b] = st.pop(); out.push([a,b]);
+    for (const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const R=a+dr, C=b+dc, k=R*N+C;
+      if (R>=0&&R<N&&C>=0&&C<N && !seen.has(k) && board[R][C]===v){ seen.add(k); st.push([R,C]); }
+    }
+  }
+  return out;
+}
+
+function addScore(n){
+  score += n; scoreEl.textContent = score;
+  while (nextAward && score >= nextAward){ nextAward += 3500; setTimeout(awardItem, 400); }
+  if (score > best){ best = score; bestEl.textContent = best; try{ localStorage.setItem('merge-best', best); }catch(e){} }
+}
+
+function flashCombo(text){
+  const d = document.createElement('div');
+  d.className = 'combo'; d.textContent = text;
+  boardEl.appendChild(d);
+  setTimeout(() => d.remove(), 850);
+}
+
+async function place(i, r0, c0){
+  busy = true;
+  disarm();
+  const p = tray[i];
+  tray[i] = null;
+  const anim = {}, placed = [];
+  p.forEach(([r,c,v]) => { board[r0+r][c0+c] = v; anim[(r0+r)*N+c0+c] = 'drop'; placed.push([r0+r,c0+c]); });
+  addScore(p.length);
+  renderBoard(anim);
+  renderTray();
+  await sleep(160);
+
+  const chain = await resolve(placed);
+  if (chain >= 3) awardItem();
+
+  if (tray.every(t => !t)) tray = [makePiece(), makePiece(), makePiece()];
+  renderTray();
+  busy = false;
+  checkOver();
+}
+
+async function resolve(queue){
+  let chain = 0;
+  while (queue.length){
+    const next = [], merges = {};
+    for (const [r,c] of queue){
+      if (!board[r][c]) continue;
+      const g = group(r,c);
+      if (g.length < 3) continue;
+      const v = board[r][c], nv = v*2;
+      g.forEach(([a,b]) => board[a][b] = 0);
+      board[r][c] = nv;
+      chain++;
+      maxMade = Math.max(maxMade, nv);
+      addScore(nv * g.length * chain);
+      merges[r*N+c] = 'pop';
+      next.push([r,c]);
+    }
+    if (!next.length) break;
+    renderBoard(merges);
+    if (chain >= 2) flashCombo(`연쇄 ×${chain}`);
+    await sleep(300);
+    await detonate(next);
+    queue = next.filter(([r,c]) => board[r][c]);
+  }
+  return chain;
+}
+
+// 128 이상이 된 타일은 터지면서 주변 3×3을 비운다
+async function detonate(list){
+  const gone = [];
+  for (const [r,c] of list){
+    if (board[r] && board[r][c] >= 128){
+      for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++){
+        const R=r+dr, C=c+dc;
+        if (R>=0&&R<N&&C>=0&&C<N){ board[R][C] = 0; gone.push(R*N+C); }
+      }
+      addScore(1000);
+    }
+  }
+  if (!gone.length) return false;
+  renderBoard();
+  gone.forEach(k => { const b = document.createElement('div'); b.className='burst'; cells[k].appendChild(b); });
+  flashCombo('펑! +1000');
+  await sleep(380);
+  renderBoard();
+  return true;
+}
+
+// ---------- 아이템 ----------
+const ITEMS = {
+  hammer: { ico:'🔨', name:'망치',   tip:'부술 타일을 누르세요',        w:34 },
+  bomb:   { ico:'💣', name:'폭탄',   tip:'날려버릴 자리를 누르세요 (3×3)', w:20 },
+  wand:   { ico:'✨', name:'승급봉', tip:'두 배로 올릴 타일을 누르세요',  w:26 },
+  swap:   { ico:'🔄', name:'블록교체', tip:'',                          w:20 },
+};
+let items, armed = null, nextAward;
+const itemsEl = document.getElementById('items');
+const hintEl = document.getElementById('hint');
+
+function renderItems(){
+  itemsEl.innerHTML = Object.entries(ITEMS).map(([k, it]) =>
+    `<button class="item ${armed===k?'on':''}" data-k="${k}" ${items[k]?'':'disabled'}>
+       <span class="ico">${it.ico}</span><span>${it.name}</span><span class="n">${items[k]}</span>
+     </button>`).join('');
+  hintEl.textContent = armed ? ITEMS[armed].tip : '';
+  document.body.classList.toggle('arming', !!armed);
+  markTargets();
+}
+itemsEl.addEventListener('click', e => {
+  const b = e.target.closest('.item');
+  if (!b || b.disabled || busy) return;
+  const k = b.dataset.k;
+  if (k === 'swap'){ useSwap(); return; }
+  armed = (armed === k) ? null : k;
+  renderItems();
+});
+
+function disarm(){ if (armed){ armed = null; renderItems(); } }
+
+function markTargets(){
+  cells.forEach(c => c.classList.remove('target'));
+  if (!armed) return;
+  for (let r=0;r<N;r++) for (let c=0;c<N;c++){
+    const usable = armed === 'bomb' ? true : !!board[r][c];
+    if (usable) cells[r*N+c].classList.add('target');
+  }
+}
+
+const CAP = 2;            // 종류별 최대 보유 수
+function awardItem(){
+  const pool = [];
+  Object.entries(ITEMS).forEach(([k, it]) => { if (items[k] < CAP) for (let i=0;i<it.w;i++) pool.push(k); });
+  if (!pool.length){ addScore(500); flashCombo('가방이 가득! +500'); return; }   // 다 찼으면 점수로
+  const k = rnd(pool);
+  items[k]++;
+  renderItems();
+  flashCombo(`${ITEMS[k].ico} ${ITEMS[k].name} 획득!`);
+}
+
+boardEl.addEventListener('click', async e => {
+  if (!armed || busy) return;
+  const cell = e.target.closest('.cell');
+  if (!cell) return;
+  const idx = cells.indexOf(cell);
+  if (idx < 0) return;
+  await useItem(armed, Math.floor(idx/N), idx%N);
+});
+
+async function useItem(k, r, c){
+  if (k !== 'bomb' && !board[r][c]) return;
+  busy = true;
+  items[k]--;
+  armed = null;
+  renderItems();
+
+  if (k === 'hammer'){
+    board[r][c] = 0;
+    renderBoard();
+    const b = document.createElement('div'); b.className = 'burst'; cells[r*N+c].appendChild(b);
+    await sleep(300); renderBoard();
+  } else if (k === 'bomb'){
+    const gone = [];
+    for (let dr=-1;dr<=1;dr++) for (let dc=-1;dc<=1;dc++){
+      const R=r+dr, C=c+dc;
+      if (R>=0&&R<N&&C>=0&&C<N && board[R][C]){ board[R][C] = 0; gone.push(R*N+C); }
+    }
+    renderBoard();
+    gone.forEach(i => { const b = document.createElement('div'); b.className = 'burst'; cells[i].appendChild(b); });
+    flashCombo('펑!');
+    await sleep(380); renderBoard();
+  } else if (k === 'wand'){
+    const nv = board[r][c] * 2;
+    board[r][c] = nv;
+    maxMade = Math.max(maxMade, nv);
+    addScore(nv);
+    renderBoard({ [r*N+c]: 'pop' });
+    await sleep(320);
+    await detonate([[r,c]]);
+    await resolve([[r,c]]);
+  }
+  busy = false;
+  renderItems();
+  checkOver();
+}
+
+async function useSwap(){
+  busy = true;
+  items.swap--;
+  armed = null;
+  tray = [makePiece(), makePiece(), makePiece()];
+  renderItems(); renderTray();
+  flashCombo('🔄 새 블록!');
+  busy = false;
+  checkOver();
+}
+
+function checkOver(){
+  const alive = tray.some(p => p && fitsAnywhere(p, true));
+  if (alive){ overEl.classList.remove('show'); return; }
+  const canSave = Object.values(items).some(v => v > 0);
+  document.getElementById('finalText').textContent = canSave
+    ? `점수 ${score}점 · 아이템으로 자리를 만들면 이어서 할 수 있어요`
+    : `이번 점수 ${score}점 · 최고 숫자 ${maxMade}`;
+  document.getElementById('resume').style.display = canSave ? '' : 'none';
+  overEl.classList.add('show');
+}
+document.getElementById('resume').onclick = () => overEl.classList.remove('show');
+
+function sizeBoard(){
+  const w = document.querySelector('.wrap').clientWidth - 32;
+  const cell = Math.max(28, Math.min(46, Math.floor((w - 24 - 7*4) / 8)));
+  document.documentElement.style.setProperty('--cell', cell + 'px');
+}
+window.addEventListener('resize', () => { cancelDrag(); sizeBoard(); });
+sizeBoard();
+
+function newGame(){
+  board = Array.from({length:N}, () => Array(N).fill(0));
+  score = 0; maxMade = 2; scoreEl.textContent = 0;
+  tray = [makePiece(), makePiece(), makePiece()];
+  items = { hammer:1, bomb:0, wand:0, swap:0 };
+  armed = null; nextAward = 2000;
+  overEl.classList.remove('show');
+  renderBoard(); renderTray(); renderItems();
+}
+
+document.getElementById('again').onclick = newGame;
+document.getElementById('restart').onclick = () => { if (!busy) newGame(); };
+newGame();
+})();
+</script>
+</body>
+</html>
